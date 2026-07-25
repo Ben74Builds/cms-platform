@@ -10,7 +10,12 @@ would do to coverage. On a cardiac arrest, that blind spot is measured in minute
 This system answers the question continuously, at the granularity of a single building,
 over a full road network, while vehicles are moving.
 
-![Coverage rendering, Île-de-France](services/frontend/app/img/example_rendering_ile-de-france.jpg)
+![Live coverage across Paris](services/frontend/app/img/coverage_paris_citywide.jpg)
+
+*Coverage across Paris, recomputed as units move. Every building is coloured by
+how many units can actually reach it within the response budget — red is
+uncovered, cyan is eight or more. The circles are stations, numbered by units
+available. Compare that to the legacy operational picture: 77 static sectors.*
 
 > **Status: R&D prototype.** Technically complete and running on five cities, but never
 > deployed in live operations.
@@ -31,6 +36,13 @@ travel time from every candidate vehicle — and doing it again every time a veh
 For Île-de-France that is **3.3M buildings against 464k road segments**, re-scored
 continuously. The naive approach does not finish; a managed routing service costs more
 per query than the budget for the entire system.
+
+![Building-level coverage](services/frontend/app/img/coverage_building_level.jpg)
+
+*Zoomed in, the unit of analysis is a single building, not a sector or a radius.
+Instrumented run: a coverage rebuild over ~46k candidate buildings resolves in
+**19 ms**, a viewport refresh of 4.5k features in **94 ms**, 207k buildings
+covered in view, held at **60 FPS**.*
 
 ## How it works
 
