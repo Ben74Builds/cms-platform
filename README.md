@@ -63,6 +63,12 @@ flowchart LR
 full road network need sub-50 ms route queries. Plain PostGIS routing and managed services
 do not get there. The graph is contracted once, offline, then queried millions of times.
 
+<img src="services/frontend/app/img/coverage_station_detail.jpg" width="420" alt="Coverage reachable from one station">
+
+*One station and what it actually reaches. The ring shows its units by
+category; the colouring follows streets, not a radius — which is the whole
+point. A building across the block can be reachable while its neighbour is not.*
+
 **Coverage — CUDA kernels with automatic CPU fallback.** The per-building distance
 thresholding and capacity computation are embarrassingly parallel and became the
 bottleneck once routing was fast. Moving the hot loop to the GPU was the answer; the
@@ -71,6 +77,14 @@ system still runs correctly, just slower, on a machine without a CUDA device.
 **Streaming — deliberately thin.** `Kafka → C++ → Redis → SSE`. No stream-processing
 framework, no message broker cluster to babysit: enough to hold end-to-end latency under
 a second from a position update to a repainted map.
+
+![Instrumented live run](services/frontend/app/img/coverage_live_instrumented.jpg)
+
+*The same map with the debug console open, which is where the latency claim is
+actually checkable: three SSE streams connected, 242 units loaded, and each
+position update triggering a coverage rebuild — `40225 unique IDs (41678 total)
+in 10ms`, then `46003 total in 19ms` — repainted at 60 FPS. The fast path
+pushes deltas (`4325 deltas in 3.0ms`) instead of rebuilding the layer.*
 
 **Dynamic threshold.** The coverage target is not a constant. Mobilisation time — the delay
 between a crew being alerted and the vehicle actually departing — varies by hour of day, so
