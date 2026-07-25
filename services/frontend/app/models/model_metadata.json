@@ -1,0 +1,48 @@
+{
+  "train_records": 514825,
+  "test_size": 0.2,
+  "mobilization_metrics": {
+    "r2": 0.259,
+    "mae": 38.9,
+    "median_ae": 30.0,
+    "rmse": 54.3
+  },
+  "travel_metrics": {
+    "r2": 0.3599,
+    "mae": 110.3,
+    "median_ae": 80.1,
+    "rmse": 173.4
+  },
+  "combined_metrics": {
+    "r2": -0.1226,
+    "mae": 192.1,
+    "median_ae": 185.5,
+    "rmse": 228.9
+  },
+  "mobilization_features": [
+    "hour_of_day",
+    "day_of_week",
+    "is_night",
+    "is_weekend",
+    "station_id",
+    "unit_category",
+    "intervention_type"
+  ],
+  "travel_features": [
+    "hour_of_day",
+    "day_of_week",
+    "is_night",
+    "is_weekend",
+    "is_rush_hour",
+    "station_id",
+    "unit_category",
+    "intervention_type",
+    "road_distance_m",
+    "road_travel_time_sec",
+    "straight_line_distance_m",
+    "departure_lat",
+    "departure_lon",
+    "intervention_lat",
+    "intervention_lon"
+  ]
+}

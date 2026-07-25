@@ -1,0 +1,4 @@
+"id","code","name","lat","lon","type"
+1301,"DEMO1","Demo Station 1","45.9076","6.1213","main"
+1302,"DEMO2","Demo Station 2","45.9314","6.0895","main"
+1303,"DEMO3","Demo Station 3","46.0186","6.1077","satellite"

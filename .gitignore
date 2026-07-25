@@ -1,0 +1,94 @@
+# Environment
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+.eggs/
+
+# Compiled object files (regeneratable)
+*.o
+*.a
+*.lo
+*.la
+
+# Build artifacts
+*.dSYM/
+.libs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Test/sample data archives
+services/signals/_archives/
+
+# Backend lib - exclude entire directory (contains compiled dependencies)
+# These libraries need to be built from source or obtained separately
+# Required .so files are documented in services/backend/README.md
+services/backend/lib/
+
+# Large data files (regeneratable)
+*.dat
+services/frontend/app/osm/json/ile-de-france.osm.json
+
+# OSM data files (too large for git)
+*.osm.pbf
+
+# Map tiles (regeneratable)
+**/tiles/
+
+# Preprocessing & backend data — never committed.
+# All of these are regenerable from the OSM PBFs + the scripts in
+# services/preprocessing/ and services/backend/test/pbf_to_contracted_graph.cpp.
+# Backups go through a non-git channel. .gitkeep files are preserved so the
+# directory layout still exists for fresh clones.
+services/preprocessing/output/**
+!services/preprocessing/output/**/.gitkeep
+services/backend/data/backup/**
+!services/backend/data/backup/.gitkeep
+services/backend/data/pbf/**
+!services/backend/data/pbf/.gitkeep
+services/backend/data/coverage/**
+!services/backend/data/coverage/.gitkeep
+services/backend/data/geojson/**
+!services/backend/data/geojson/.gitkeep
+
+# Real vehicle position & status feeds — NEVER commit, under any circumstance.
+# This platform READS such a feed from Kafka; it must never CARRY one. Anything
+# a demo needs is produced by the simulator instead.
+services/signals/**/data/*_service_*.json
+**/units_gps_positioning/**/data/**
+
+# Generated tiles, build output and vendored third-party sources: regenerable,
+# and they turn a 6 MB repository into a 2 GB one.
+services/frontend/app/static/data/tiles/**
+!services/frontend/app/static/data/tiles/.gitkeep
+services/frontend/app/static/dist/**
+services/frontend/lib/tippecanoe/**
+services/backend/lib/**
+services/backend/bin/*
+!services/backend/bin/.gitkeep
+services/frontend/app/models/*.pkl
+services/frontend/app/osm/**

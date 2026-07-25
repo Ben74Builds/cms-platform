@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{{ static_url('img/logo.png') }}">
+
+    <!-- MapLibre GL -->
+    <script src="{{ static_url('lib/maplibre-gl/4.4.0/maplibre-gl.js') }}"></script>
+    <link href="{{ static_url('lib/maplibre-gl/4.4.0/maplibre-gl.css') }}" rel="stylesheet" />
+    <!-- Turf.js for buffer geometry -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+
+    <title>{{ PAGE_TITLE }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        /* Panels */
+        .panel {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            padding: 14px;
+            font-size: 13px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        /* Stats panel - top right */
+        #stats-panel {
+            top: 12px;
+            right: 12px;
+            min-width: 220px;
+        }
+        #stats-panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 6px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+        }
+        .stat-label { color: #666; }
+        .stat-value { font-weight: 600; color: #333; }
+        .stat-value.linked { color: #1976D2; }
+        .stat-value.unlinked { color: #E64A19; }
+        .stat-section {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+        .stat-section-title {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 4px;
+        }
+
+        /* Info panel - right side, below stats */
+        #info-panel {
+            top: 280px;
+            right: 12px;
+            min-width: 280px;
+            max-width: 320px;
+            display: none;
+        }
+        #info-panel.visible { display: block; }
+        #info-panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 6px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            gap: 8px;
+        }
+        .info-label { color: #666; white-space: nowrap; }
+        .info-value { font-weight: 500; color: #333; text-align: right; word-break: break-all; }
+        .info-value.linked { color: #1976D2; }
+        .info-value.unlinked { color: #E64A19; font-weight: 700; }
+        .info-section {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+        .info-section-title {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 4px;
+        }
+        .building-list {
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 11px;
+            color: #555;
+            background: #f5f5f5;
+            border-radius: 4px;
+            padding: 6px;
+            margin-top: 4px;
+        }
+        .close-btn {
+            float: right;
+            cursor: pointer;
+            color: #999;
+            font-weight: bold;
+            font-size: 16px;
+            line-height: 1;
+        }
+        .close-btn:hover { color: #333; }
+
+        /* Legend - bottom left */
+        #legend {
+            bottom: 30px;
+            left: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 3px 0;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+
+        /* Title bar */
+        #title-bar {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            padding: 10px 16px;
+        }
+        #title-bar h2 {
+            font-size: 15px;
+            color: #333;
+            margin: 0;
+        }
+        #title-bar .subtitle {
+            font-size: 11px;
+            color: #888;
+            margin-top: 2px;
+        }
+        #title-bar a {
+            font-size: 11px;
+            color: #1976D2;
+            text-decoration: none;
+        }
+        #title-bar a:hover { text-decoration: underline; }
+
+        /* Search box */
+        #search-box {
+            position: absolute;
+            top: 90px;
+            left: 12px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            padding: 10px 14px;
+        }
+        #search-box input {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 13px;
+            width: 200px;
+            outline: none;
+        }
+        #search-box input:focus { border-color: #1976D2; }
+        #search-box button {
+            margin-left: 6px;
+            padding: 6px 12px;
+            border: none;
+            background: #1976D2;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        #search-box button:hover { background: #1565C0; }
+        #search-result {
+            font-size: 11px;
+            color: #666;
+            margin-top: 6px;
+        }
+
+        /* Buffer controls */
+        #buffer-controls {
+            position: absolute;
+            top: 150px;
+            left: 12px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            padding: 10px 14px;
+            font-size: 13px;
+            min-width: 260px;
+        }
+        #buffer-controls label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            color: #333;
+        }
+        #buffer-controls .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        #buffer-controls input[type="range"] {
+            flex: 1;
+            accent-color: #1976D2;
+        }
+        #buffer-distance-value {
+            font-weight: 600;
+            color: #1976D2;
+            min-width: 40px;
+            text-align: right;
+        }
+        #buffer-controls .hint {
+            font-size: 10px;
+            color: #999;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Title -->
+    <div id="title-bar">
+        <h2>Building-Segment Linkage Inspector</h2>
+        <div class="subtitle">Click a road segment or building to inspect linkages</div>
+        <a href="/map">Back to main map</a>
+    </div>
+
+    <!-- Search by building ID -->
+    <div id="search-box">
+        <input type="text" id="search-input" placeholder="Building ID or Segment ID">
+        <button id="search-btn">Search</button>
+        <div id="search-result"></div>
+    </div>
+
+    <!-- Buffer radius controls -->
+    <div id="buffer-controls">
+        <label>
+            <input type="checkbox" id="buffer-toggle" checked>
+            Show linkage radius
+        </label>
+        <div class="slider-row">
+            <span style="font-size:11px; color:#888;">0m</span>
+            <input type="range" id="buffer-distance" min="5" max="100" value="50" step="5">
+            <span id="buffer-distance-value">50m</span>
+        </div>
+        <div class="hint">Preprocessing uses 50m — adjust to compare</div>
+    </div>
+
+    <!-- Stats panel -->
+    <div id="stats-panel" class="panel">
+        <h3>Viewport Statistics</h3>
+        <div class="stat-row">
+            <span class="stat-label">Buildings visible</span>
+            <span class="stat-value" id="stat-total">-</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Linked</span>
+            <span class="stat-value linked" id="stat-linked">-</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Unlinked</span>
+            <span class="stat-value unlinked" id="stat-unlinked">-</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Link ratio</span>
+            <span class="stat-value" id="stat-ratio">-</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Road segments visible</span>
+            <span class="stat-value" id="stat-segments">-</span>
+        </div>
+
+        <div class="stat-section">
+            <div class="stat-section-title">Global (from mapping)</div>
+            <div class="stat-row">
+                <span class="stat-label">Total segments</span>
+                <span class="stat-value" id="stat-global-segments">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Total buildings</span>
+                <span class="stat-value" id="stat-global-buildings">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Avg bldg/segment</span>
+                <span class="stat-value" id="stat-avg-bps">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Avg seg/building</span>
+                <span class="stat-value" id="stat-avg-spb">-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info panel (shown on click) -->
+    <div id="info-panel" class="panel">
+        <span class="close-btn" id="info-close">&times;</span>
+        <h3>Building Details</h3>
+        <div id="info-content"></div>
+    </div>
+
+    <!-- Legend -->
+    <div id="legend" class="panel">
+        <div style="font-weight:600; margin-bottom:6px; font-size:12px; color:#555;">Roads</div>
+        <div class="legend-item">
+            <span class="legend-color" style="background: #888; height: 3px; border-radius: 2px;"></span>
+            <span>Road segment</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background: #FF6D00; height: 4px; border-radius: 2px;"></span>
+            <span>Selected / linked segment</span>
+        </div>
+        <div style="font-weight:600; margin: 8px 0 6px; font-size:12px; color:#555;">Buildings</div>
+        <div class="legend-item">
+            <span class="legend-color" style="background: #2196F3;"></span>
+            <span>Linked to segment</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background: #FF5722;"></span>
+            <span>No segment linked</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background: #FFD600;"></span>
+            <span>Selected building</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background: #00E676;"></span>
+            <span>Linked buildings (from segment)</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background: rgba(255,109,0,0.15); border: 2px dashed #FF6D00;"></span>
+            <span>Linkage radius</span>
+        </div>
+    </div>
+
+    <script>
+        // City configuration passed from server
+        const CITY_CONFIG = {{ city_config | tojson }};
+        const CITY_SLUG = "{{ city }}";
+    </script>
+    <script src="{{ static_url('js/admin_linkage.js') }}"></script>
+</body>
+</html>

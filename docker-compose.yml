@@ -1,0 +1,375 @@
+# =============================================================================
+# CMS Platform - Docker Compose (Development)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Database
+  # ---------------------------------------------------------------------------
+  postgres:
+    build:
+      context: ./infra/postgres
+      dockerfile: Dockerfile
+    container_name: cms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-ems}
+    ports:
+      - "5432:5432"
+    volumes:
+      - /mnt/volume-ash-01/data/cms/pgdata:/var/lib/postgresql/data
+    networks:
+      - cms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ems}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Kafka (KRaft mode - no Zookeeper)
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.5.2
+    container_name: cms-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: NjA0ZTZiY2Q2NGFjNDliNj
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    networks:
+      - cms-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Kafka Init (create topics)
+  # ---------------------------------------------------------------------------
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.2
+    container_name: cms-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command: |
+      "
+      echo 'Creating Kafka topics...'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic paris_gps_status --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic paris_route_request --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic paris_coverage_request --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic andorra_gps_status --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic andorra_route_request --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic andorra_coverage_request --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic san-marino_gps_status --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic san-marino_route_request --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic san-marino_coverage_request --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic annecy_gps_status --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic annecy_route_request --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic annecy_coverage_request --partitions 1 --replication-factor 1
+      echo 'Topics created:'
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+    networks:
+      - cms-network
+
+  # ---------------------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: cms-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cms-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Signals (GPS data streamer from PostgreSQL to Kafka)
+  # ---------------------------------------------------------------------------
+  signals:
+    build:
+      context: ./services/signals
+      dockerfile: Dockerfile
+    container_name: cms-signals
+    restart: unless-stopped
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=${POSTGRES_DB:-ems}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - KAFKA_HOSTS=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - cms-network
+
+  # ---------------------------------------------------------------------------
+  # Signals Andorra (GPS data streamer for Andorra vehicles)
+  # ---------------------------------------------------------------------------
+  signals-andorra:
+    build:
+      context: ./services/signals
+      dockerfile: Dockerfile
+    container_name: cms-signals-andorra
+    restart: unless-stopped
+    environment:
+      - CONFIG_FILE=config_andorra.py
+      - DB_HOST=postgres
+      - DB_NAME=${POSTGRES_DB:-ems}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - KAFKA_HOSTS=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - cms-network
+
+  # ---------------------------------------------------------------------------
+  # Signals Vaduz (GPS data streamer for Vaduz vehicles)
+  # ---------------------------------------------------------------------------
+  signals-vaduz:
+    build:
+      context: ./services/signals
+      dockerfile: Dockerfile
+    container_name: cms-signals-vaduz
+    restart: unless-stopped
+    environment:
+      - CONFIG_FILE=config_vaduz.py
+      - DB_HOST=postgres
+      - DB_NAME=${POSTGRES_DB:-ems}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - KAFKA_HOSTS=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - cms-network
+
+  # ---------------------------------------------------------------------------
+  # Signals San Marino (GPS data streamer for San Marino vehicles)
+  # ---------------------------------------------------------------------------
+  signals-san-marino:
+    build:
+      context: ./services/signals
+      dockerfile: Dockerfile
+    container_name: cms-signals-san-marino
+    restart: unless-stopped
+    environment:
+      - CONFIG_FILE=config_san-marino.py
+      - DB_HOST=postgres
+      - DB_NAME=${POSTGRES_DB:-ems}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - KAFKA_HOSTS=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - cms-network
+
+  # ---------------------------------------------------------------------------
+  # Signals Annecy (GPS data streamer for Annecy vehicles)
+  # ---------------------------------------------------------------------------
+  signals-annecy:
+    build:
+      context: ./services/signals
+      dockerfile: Dockerfile
+    container_name: cms-signals-annecy
+    restart: unless-stopped
+    environment:
+      - CONFIG_FILE=config_annecy.py
+      - DB_HOST=postgres
+      - DB_NAME=${POSTGRES_DB:-ems}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - KAFKA_HOSTS=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - cms-network
+
+  # ---------------------------------------------------------------------------
+  # Backend (C++ GPS processing services - GPU-accelerated)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile.build
+    container_name: cms-backend
+    restart: unless-stopped
+    # Use host network because the C++ binary has hardcoded localhost:9092
+    # and 127.0.0.1:6379 for Redis
+    network_mode: host
+    environment:
+      - KAFKA_HOSTS=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    # GPU passthrough for CUDA-accelerated coverage computation
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ./services/backend/data/backup/paris/graph.dat:/app/data/backup/paris/graph.dat:ro
+      - ./services/backend/data/backup/paris/ch.dat:/app/data/backup/paris/ch.dat:ro
+      - ./services/preprocessing/output/building_segment_mapping.json:/app/data/backup/paris/building_segment_mapping.json:ro
+      - ./services/preprocessing/output/andorra/building_segment_mapping.json:/app/data/backup/andorra/building_segment_mapping.json:ro
+      - ./services/preprocessing/output/vaduz/building_segment_mapping.json:/app/data/backup/vaduz/building_segment_mapping.json:ro
+      - ./services/preprocessing/output/san-marino/building_segment_mapping.json:/app/data/backup/san-marino/building_segment_mapping.json:ro
+      - ./services/backend/data/backup/annecy/graph.dat:/app/data/backup/annecy/graph.dat:ro
+      - ./services/backend/data/backup/annecy/ch.dat:/app/data/backup/annecy/ch.dat:ro
+      - ./services/preprocessing/output/annecy/building_segment_mapping.json:/app/data/backup/annecy/building_segment_mapping.json:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Frontend (Flask/MapLibre web application)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    container_name: cms-frontend
+    restart: unless-stopped
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BACKEND_API_URL=http://host.docker.internal:9080
+      - DEBUG_MODE=true
+      - DB_HOST=postgres
+      - DB_NAME=${POSTGRES_DB:-ems}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./services/frontend/app/static/data/tiles:/app/static/data/tiles
+      # Legacy flat mounts (default city)
+      - ./services/preprocessing/output/building_segment_mapping.json:/app/data/building_segment_mapping.json:ro
+      - ./services/preprocessing/output/roads:/app/data/roads:ro
+      # Per-city data and preprocessing scripts
+      - ./services/preprocessing/output:/app/data/cities
+      - ./services/preprocessing:/app/preprocessing
+      # Persistent PBF cache (avoid re-downloading country files)
+      - /mnt/volume-ash-01/data/cms/pbf_cache:/app/data/pbf_cache
+    ports:
+      - "5001:5001"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cms-network
+
+  # ---------------------------------------------------------------------------
+  # Development Tools
+  # ---------------------------------------------------------------------------
+  adminer:
+    image: adminer:4
+    container_name: cms-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      - postgres
+    networks:
+      - cms-network
+    profiles:
+      - dev
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  redis_data:
+    name: cms-redis-data
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  cms-network:
+    name: cms-network
+    driver: bridge

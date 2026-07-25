@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#1a365d"/>
+
+  <!-- Signal waves -->
+  <path d="M45 20c3 3 5 7 5 12s-2 9-5 12" stroke="#4fd1c5" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M49 16c4 4 7 10 7 16s-3 12-7 16" stroke="#38b2ac" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Vehicle (truck silhouette) -->
+  <rect x="12" y="32" width="28" height="12" rx="2" fill="#2c5282"/>
+  <rect x="12" y="28" width="12" height="8" rx="1" fill="#2c5282"/>
+  <circle cx="18" cy="46" r="4" fill="#1a365d" stroke="#4fd1c5" stroke-width="2"/>
+  <circle cx="34" cy="46" r="4" fill="#1a365d" stroke="#4fd1c5" stroke-width="2"/>
+
+  <!-- Road line -->
+  <path d="M8 52 Q32 48 56 52" stroke="#38a169" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

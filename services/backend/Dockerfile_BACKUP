@@ -1,0 +1,75 @@
+# Use an official Alpine image as a base
+FROM alpine:3.17
+
+# Install dependencies
+RUN apk update && \
+    apk add --no-cache \
+    autoconf \
+    automake \
+    libtool \
+    make \
+    g++ \
+    curl \
+    unzip \
+    wget \
+    cmake \
+    protobuf-dev \
+    protobuf \
+    git \
+    hiredis-dev \
+    openssl-dev
+
+# Set the Protobuf version
+ENV PROTOBUF_VERSION=3.18.0
+
+# Install Protobuf from source
+RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-cpp-${PROTOBUF_VERSION}.zip && \
+    unzip protobuf-cpp-${PROTOBUF_VERSION}.zip && \
+    cd protobuf-${PROTOBUF_VERSION} && \
+    ./configure && \
+    make && \
+    make install && \
+    ldconfig && \
+    cd .. && \
+    rm -rf protobuf-${PROTOBUF_VERSION} protobuf-cpp-${PROTOBUF_VERSION}.zip
+
+# Install OSM-binary
+RUN git clone https://github.com/scrosby/OSM-binary.git && \
+    cd OSM-binary && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf OSM-binary
+
+# Install hiredis
+RUN git clone https://github.com/redis/hiredis.git && \
+    cd hiredis && \
+    make && \
+    make install && \
+    ldconfig && \
+    cd .. && \
+    rm -rf hiredis
+
+# Install redis-plus-plus
+RUN git clone --recurse-submodules https://github.com/sewenew/redis-plus-plus.git && \
+    cd redis-plus-plus && \
+    mkdir -p build && \
+    cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make && \
+    make install && \
+    ldconfig && \
+    cd ../.. && \
+    rm -rf redis-plus-plus
+
+# Clean up
+RUN apk del \
+    git \
+    wget \
+    curl
+
+# Define a working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["ash"]

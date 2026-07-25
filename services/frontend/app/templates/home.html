@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/static/img/logo.png">
+    <title>CMS - Coverage Monitoring System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0e17;
+            color: #e0e0e0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background grid */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(30, 60, 120, 0.12) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 60, 120, 0.12) 1px, transparent 1px);
+            background-size: 48px 48px;
+            z-index: 0;
+        }
+        .bg-glow {
+            position: fixed;
+            top: -30%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(25, 118, 210, 0.08) 0%, transparent 70%);
+            z-index: 0;
+        }
+
+        /* Header */
+        header {
+            position: relative;
+            z-index: 1;
+            padding: 32px 40px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        header img {
+            width: 40px;
+            height: 40px;
+            filter: brightness(1.2);
+        }
+        header .brand {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.7);
+            letter-spacing: 0.5px;
+        }
+        header .status {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.4);
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Hero */
+        .hero {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 80px 20px 60px;
+        }
+        .hero-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border: 1px solid rgba(25, 118, 210, 0.3);
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #64b5f6;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 24px;
+            background: rgba(25, 118, 210, 0.08);
+        }
+        .hero h1 {
+            font-size: 48px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+        .hero h1 span {
+            background: linear-gradient(135deg, #42a5f5, #1565c0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            font-size: 17px;
+            color: rgba(255,255,255,0.5);
+            max-width: 540px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Cards */
+        .cards {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            gap: 28px;
+            justify-content: center;
+            padding: 20px 20px 80px;
+            flex-wrap: wrap;
+        }
+        .card {
+            background: linear-gradient(145deg, rgba(20, 28, 45, 0.9), rgba(15, 20, 35, 0.95));
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 36px 32px;
+            width: 320px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            border-radius: 16px 16px 0 0;
+        }
+        .card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(255,255,255,0.12);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        .card-city::before { background: linear-gradient(90deg, #1565c0, #42a5f5); }
+        .card-city:hover { box-shadow: 0 20px 60px rgba(25, 118, 210, 0.15); }
+        .card-city { cursor: default; }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+        .card-city .card-icon {
+            background: rgba(25, 118, 210, 0.12);
+            color: #42a5f5;
+        }
+
+        .card h2 {
+            font-size: 19px;
+            color: #fff;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .card p {
+            font-size: 13.5px;
+            color: rgba(255,255,255,0.45);
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .card-features {
+            list-style: none;
+            padding: 0;
+        }
+        .card-features li {
+            font-size: 12.5px;
+            color: rgba(255,255,255,0.35);
+            padding: 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-features li::before {
+            content: '';
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .card-city .card-features li::before { background: #42a5f5; }
+
+        /* Section title */
+        .section-title {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 0 20px 20px;
+        }
+        .section-title h2 {
+            font-size: 20px;
+            color: rgba(255,255,255,0.6);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .section-title p {
+            font-size: 13px;
+            color: rgba(255,255,255,0.3);
+        }
+
+        /* City action links */
+        .city-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin-top: 20px;
+        }
+        .city-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 14px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .city-link svg { width: 14px; height: 14px; flex-shrink: 0; }
+        .city-link-step {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .city-link-map {
+            background: rgba(25, 118, 210, 0.12);
+            color: #42a5f5;
+            border: 1px solid rgba(25, 118, 210, 0.2);
+        }
+        .city-link-map:hover {
+            background: rgba(25, 118, 210, 0.25);
+            border-color: rgba(25, 118, 210, 0.4);
+        }
+        .city-link-map .city-link-step { background: rgba(25,118,210,0.25); color: #90caf9; }
+        .city-link-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+            cursor: default;
+            position: relative;
+        }
+        .city-link-admin {
+            background: rgba(230, 81, 0, 0.12);
+            color: #ff9800;
+            border: 1px solid rgba(230, 81, 0, 0.2);
+        }
+        .city-link-admin:hover {
+            background: rgba(230, 81, 0, 0.25);
+            border-color: rgba(230, 81, 0, 0.4);
+        }
+        .city-link-admin .city-link-step { background: rgba(230,81,0,0.25); color: #ffcc80; }
+        .city-link-sim {
+            background: rgba(56, 142, 60, 0.12);
+            color: #4CAF50;
+            border: 1px solid rgba(56, 142, 60, 0.2);
+        }
+        .city-link-sim:hover {
+            background: rgba(56, 142, 60, 0.25);
+            border-color: rgba(56, 142, 60, 0.4);
+        }
+        .city-link-sim .city-link-step { background: rgba(56,142,60,0.25); color: #a5d6a7; }
+        /* Connector line between steps */
+        .city-step-connector {
+            width: 2px;
+            height: 8px;
+            background: rgba(255,255,255,0.12);
+            margin-left: 23px;
+        }
+        /* Optional tool — visually separated from the main workflow */
+        .city-link-optional {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            opacity: 0.6;
+            font-size: 11.5px;
+        }
+        .city-link-optional:hover { opacity: 1; }
+
+        /* Add City card */
+        .card-add {
+            border: 2px dashed rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.03);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            transition: all 0.3s;
+        }
+        .card-add:hover {
+            border-color: rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.08);
+        }
+        .card-add .plus-icon {
+            font-size: 48px;
+            color: rgba(255,255,255,0.4);
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+        .card-add h2 { color: rgba(255,255,255,0.6); font-size: 16px; }
+        .card-add p { color: rgba(255,255,255,0.3); font-size: 13px; }
+
+        /* Pending city card */
+        .card-pending { opacity: 0.85; }
+        .card-pending .setup-progress {
+            margin-top: 16px;
+        }
+        .card-pending .progress-bar-track {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .card-pending .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #FF9800, #FFC107);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+        .card-pending .progress-bar-fill.error {
+            background: linear-gradient(90deg, #e53935, #ef5350);
+        }
+        .card-pending .setup-badge {
+            display: inline-block;
+            background: rgba(255, 152, 0, 0.15);
+            color: #FFC107;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .card-pending .setup-badge.error {
+            background: rgba(229, 57, 53, 0.15);
+            color: #ef5350;
+        }
+        .card-pending .setup-log {
+            margin-top: 10px;
+            max-height: 80px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 10px;
+            color: rgba(255,255,255,0.35);
+            line-height: 1.6;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        .card-pending .setup-log div {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card-pending .setup-log div:last-child {
+            color: rgba(255,255,255,0.55);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 28px;
+            width: 440px;
+            max-width: 90vw;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+        }
+        .modal h2 { color: #333; font-size: 18px; margin: 0 0 16px; }
+        .modal-search {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+        }
+        .modal-search:focus { border-color: #1976D2; }
+        .modal-results {
+            max-height: 250px;
+            overflow-y: auto;
+            margin-top: 8px;
+        }
+        .modal-result-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-result-item:hover { background: #f0f4ff; }
+        .modal-result-name { font-weight: 500; color: #333; }
+        .modal-result-meta { font-size: 12px; color: #999; }
+        .modal-selected {
+            margin-top: 16px;
+            padding: 16px;
+            background: #f0f4ff;
+            border-radius: 8px;
+            border: 1px solid #bbdefb;
+        }
+        .modal-selected h3 { font-size: 16px; color: #1976D2; margin: 0 0 4px; }
+        .modal-selected .meta { font-size: 13px; color: #666; }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .modal-btn-cancel { background: #f0f0f0; color: #666; }
+        .modal-btn-cancel:hover { background: #e0e0e0; }
+        .modal-btn-add { background: #1976D2; color: white; }
+        .modal-btn-add:hover { background: #1565C0; }
+        .modal-btn-add:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* Footer */
+        footer {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 0 20px 40px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
+
+    <header>
+        <img src="/static/img/logo.png" alt="">
+        <span class="brand">CMS Platform</span>
+        <div class="status">
+            <span class="status-dot"></span>
+            <span>System operational</span>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="hero-badge">Emergency Services Platform</div>
+        <h1>Coverage <span>Monitoring</span> System</h1>
+        <p>Real-time operational coverage analysis and infrastructure management for metropolitan emergency services.</p>
+    </section>
+
+    <section class="section-title">
+        <h2>Deployment Areas</h2>
+        <p>Select a coverage area to access its monitoring tools</p>
+    </section>
+
+    <section class="cards">
+        {% for slug, city in cities.items() %}
+        <div class="card card-city">
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <h2>{{ city.name }}</h2>
+            <p>{{ city.description }}</p>
+            <div class="city-links">
+                <a href="/area/{{ slug }}/admin/simulation" class="city-link city-link-sim">
+                    <span class="city-link-step">1</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Simulation
+                </a>
+                <div class="city-step-connector"></div>
+                {% if slug in cities_with_simulation %}
+                <a href="/area/{{ slug }}/map" class="city-link city-link-map">
+                    <span class="city-link-step">2</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                    Live Coverage
+                </a>
+                {% else %}
+                <span class="city-link city-link-map city-link-disabled">
+                    <span class="city-link-step">2</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                    Live Coverage
+                </span>
+                {% endif %}
+                <a href="/area/{{ slug }}/admin/linkage" class="city-link city-link-admin city-link-optional">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    Linkage Inspector
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if pending_cities is defined %}
+        {% for slug, city in pending_cities.items() %}
+        <div class="card card-city card-pending" id="card-{{ slug }}">
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <h2>{{ city.name }}</h2>
+            <p>Setting up city data...</p>
+            <div class="setup-progress">
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progress-{{ slug }}" style="width: 0%"></div>
+                </div>
+                <span class="setup-badge {% if city.status == 'error' %}error{% endif %}" id="badge-{{ slug }}">
+                    {% if city.status == 'processing' %}Initializing...{% elif city.status == 'error' %}Error{% else %}Queued{% endif %}
+                </span>
+                <div class="setup-log" id="log-{{ slug }}"></div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Add City card -->
+        <div class="card card-add" onclick="openAddCityModal()">
+            <div class="plus-icon">+</div>
+            <h2>Add City</h2>
+            <p>Search and add a new deployment area</p>
+        </div>
+    </section>
+
+    <!-- Add City Modal -->
+    <div class="modal-overlay" id="add-city-modal">
+        <div class="modal">
+            <h2>Add a New City</h2>
+            <input type="text" class="modal-search" id="city-search"
+                placeholder="Search for a city..." autocomplete="off"
+                oninput="onSearchInput(this.value)"
+                onkeydown="if(event.key==='Enter')onSearchEnter()">
+            <div class="modal-results" id="search-results"></div>
+            <div class="modal-selected" id="selected-city" style="display:none">
+                <h3 id="selected-name"></h3>
+                <div class="meta" id="selected-meta"></div>
+                <div id="cache-info" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:13px;"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="closeAddCityModal()">Cancel</button>
+                <button class="modal-btn modal-btn-add" id="add-city-btn" disabled onclick="confirmAddCity(false)">Add City</button>
+                <button class="modal-btn modal-btn-add" id="redownload-btn" style="display:none;background:#f39c12" onclick="confirmAddCity(true)">Re-download</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;"></div>
+
+    <footer>
+        Coverage Monitoring System
+    </footer>
+
+    <script>
+    function showToast(message, type = 'info', duration = 4000) {
+        const colors = { success: '#27ae60', error: '#e74c3c', warning: '#f39c12', info: '#3498db' };
+        const icons = { success: '✓', error: '✕', warning: '!', info: 'i' };
+        const el = document.createElement('div');
+        el.style.cssText = `pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:8px;background:${colors[type]||colors.info};color:#fff;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.2);animation:slideIn .3s ease;min-width:250px;`;
+        el.innerHTML = `<span style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">${icons[type]||icons.info}</span><span style="flex:1">${message}</span>`;
+        document.getElementById('toast-container').appendChild(el);
+        setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, duration);
+    }
+    let searchTimeout;
+    let selectedCity = null;
+
+    function countryFlag(code) {
+        if (!code || code.length !== 2) return '';
+        return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+    }
+
+    // Country names from ISO 3166-1 (common ones, fetched lazily)
+    let _countryNames = null;
+    async function getCountryNames() {
+        if (_countryNames) return _countryNames;
+        try {
+            // Use Intl API for country names
+            _countryNames = {};
+            const dn = new Intl.DisplayNames(['en'], { type: 'region' });
+            // Pre-populate on first search
+            return { of: (code) => { try { return dn.of(code); } catch(e) { return code; } } };
+        } catch(e) {
+            return { of: (code) => code };
+        }
+    }
+
+    const countryName = (code) => {
+        try {
+            return new Intl.DisplayNames(['en'], { type: 'region' }).of(code);
+        } catch(e) {
+            return code;
+        }
+    };
+
+    function openAddCityModal() {
+        document.getElementById('add-city-modal').classList.add('active');
+        document.getElementById('city-search').focus();
+    }
+
+    function closeAddCityModal() {
+        document.getElementById('add-city-modal').classList.remove('active');
+        document.getElementById('city-search').value = '';
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('selected-city').style.display = 'none';
+        document.getElementById('add-city-btn').disabled = true;
+        document.getElementById('add-city-btn').textContent = 'Add City';
+        document.getElementById('cache-info').style.display = 'none';
+        document.getElementById('redownload-btn').style.display = 'none';
+        selectedCity = null;
+    }
+
+    // Close modal on overlay click
+    document.getElementById('add-city-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeAddCityModal();
+    });
+
+    function onSearchInput(query) {
+        clearTimeout(searchTimeout);
+        if (query.length < 2) {
+            document.getElementById('search-results').innerHTML = '';
+            return;
+        }
+        searchTimeout = setTimeout(() => searchCities(query), 300);
+    }
+
+    let lastSearchResults = [];
+
+    async function searchCities(query) {
+        const resp = await fetch('/api/admin/cities/search?q=' + encodeURIComponent(query) + '&limit=10');
+        const results = await resp.json();
+        lastSearchResults = results;
+        const container = document.getElementById('search-results');
+
+        if (results.length === 0) {
+            container.innerHTML = '<div style="padding:12px;color:#999;text-align:center">No cities found</div>';
+            return;
+        }
+
+        // Auto-select if exactly one result
+        if (results.length === 1) {
+            selectCity(results[0]);
+            return;
+        }
+
+        container.innerHTML = results.map(c => `
+            <div class="modal-result-item" onclick='selectCity(${JSON.stringify(c)})'>
+                <span class="modal-result-name">${countryFlag(c.country_code)} ${c.name}</span>
+                <span class="modal-result-meta">${countryName(c.country_code)} &middot; pop. ${(c.population || 0).toLocaleString()}</span>
+            </div>
+        `).join('');
+    }
+
+    function onSearchEnter() {
+        if (selectedCity) {
+            confirmAddCity();
+        } else if (lastSearchResults.length > 0) {
+            selectCity(lastSearchResults[0]);
+        }
+    }
+
+    async function selectCity(city) {
+        selectedCity = city;
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('selected-city').style.display = 'block';
+        document.getElementById('selected-name').textContent = countryFlag(city.country_code) + ' ' + city.name;
+        document.getElementById('selected-meta').textContent =
+            `${countryName(city.country_code)} \u00b7 ${Number(city.latitude).toFixed(4)}, ${Number(city.longitude).toFixed(4)} \u00b7 pop. ${(city.population || 0).toLocaleString()}`;
+        document.getElementById('add-city-btn').disabled = false;
+        document.getElementById('city-search').value = city.name;
+
+        // Check PBF cache status
+        const cacheEl = document.getElementById('cache-info');
+        const redownloadBtn = document.getElementById('redownload-btn');
+        cacheEl.style.display = 'none';
+        redownloadBtn.style.display = 'none';
+
+        if (city.country_code) {
+            try {
+                const resp = await fetch('/api/admin/cities/pbf-cache?country_code=' + city.country_code);
+                const cache = await resp.json();
+                if (cache.exists) {
+                    cacheEl.style.display = 'block';
+                    cacheEl.style.background = '#e8f5e9';
+                    cacheEl.style.color = '#2e7d32';
+                    const ageText = cache.age_days >= 1
+                        ? `${cache.age_days} day${cache.age_days >= 2 ? 's' : ''} ago`
+                        : `${cache.age_hours}h ago`;
+                    cacheEl.innerHTML = `<strong>Cached:</strong> ${cache.geofabrik_path} (${cache.size_mb.toLocaleString()} MB) downloaded ${ageText}.<br>Will use cached file — no download needed.`;
+                    redownloadBtn.style.display = 'inline-block';
+                    document.getElementById('add-city-btn').textContent = 'Add City (use cache)';
+                } else if (cache.supported && cache.geofabrik_path) {
+                    cacheEl.style.display = 'block';
+                    cacheEl.style.background = '#fff3e0';
+                    cacheEl.style.color = '#e65100';
+                    cacheEl.innerHTML = `<strong>Download needed:</strong> ${cache.geofabrik_path} PBF will be downloaded and cached for future cities.`;
+                    document.getElementById('add-city-btn').textContent = 'Add City';
+                }
+            } catch(e) { /* ignore cache check failures */ }
+        }
+    }
+
+    async function confirmAddCity(forceDownload = false) {
+        if (!selectedCity) return;
+        const btn = document.getElementById('add-city-btn');
+        const redownloadBtn = document.getElementById('redownload-btn');
+        btn.disabled = true;
+        btn.textContent = 'Adding...';
+        redownloadBtn.style.display = 'none';
+
+        try {
+            const resp = await fetch('/api/admin/cities/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: selectedCity.name,
+                    latitude: selectedCity.latitude,
+                    longitude: selectedCity.longitude,
+                    country_code: selectedCity.country_code,
+                    force_download: forceDownload,
+                }),
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                if (resp.status === 409 && err.detail?.slug) {
+                    const st = err.detail.status;
+                    if (st === 'ready') {
+                        closeAddCityModal();
+                        showToast('City already exists — opening it', 'info');
+                        setTimeout(() => window.location.href = '/area/' + err.detail.slug + '/map', 1000);
+                    } else if (st === 'processing') {
+                        closeAddCityModal();
+                        showToast('City is still being set up — please wait', 'info');
+                    } else {
+                        // error or other status — delete and retry (keep selectedCity intact)
+                        showToast('Previous setup failed — retrying...', 'warning');
+                        await fetch('/api/admin/cities/' + err.detail.slug, {method: 'DELETE'});
+                        btn.disabled = false;
+                        btn.textContent = 'Add City';
+                        setTimeout(() => confirmAddCity(), 500);
+                    }
+                } else {
+                    closeAddCityModal();
+                    showToast(err.detail?.message || err.detail || 'Error adding city', 'warning');
+                }
+                return;
+            }
+
+            const data = await resp.json();
+            const cityName = selectedCity.name;
+            closeAddCityModal();
+
+            // Add pending card to the grid
+            const cardsSection = document.querySelector('.cards');
+            const addCard = cardsSection.querySelector('.card-add');
+            const pendingCard = document.createElement('div');
+            pendingCard.className = 'card card-city card-pending';
+            pendingCard.id = 'card-' + data.slug;
+            pendingCard.innerHTML = `
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                </div>
+                <h2>${cityName}</h2>
+                <p>Setting up city data...</p>
+                <div class="setup-progress">
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="progress-${data.slug}" style="width: 0%"></div>
+                    </div>
+                    <span class="setup-badge" id="badge-${data.slug}">Initializing...</span>
+                    <div class="setup-log" id="log-${data.slug}"></div>
+                </div>
+            `;
+            cardsSection.insertBefore(pendingCard, addCard);
+
+            // Poll progress
+            pollSetupProgress(data.task_id, data.slug);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+            btn.disabled = false;
+            btn.textContent = 'Add City';
+        }
+    }
+
+    function pollSetupProgress(taskId, slug) {
+        let lastMessage = '';
+        const interval = setInterval(async () => {
+            try {
+                const resp = await fetch('/api/admin/cities/setup-progress/' + taskId);
+                const data = await resp.json();
+                const badge = document.getElementById('badge-' + slug);
+                const progressBar = document.getElementById('progress-' + slug);
+                const log = document.getElementById('log-' + slug);
+
+                // Update progress bar
+                if (progressBar && data.progress !== undefined) {
+                    progressBar.style.width = data.progress + '%';
+                }
+
+                // Update badge text
+                if (badge) {
+                    badge.textContent = data.message || 'Processing...';
+                }
+
+                // Append to log if message changed
+                if (log && data.message && data.message !== lastMessage) {
+                    lastMessage = data.message;
+                    const line = document.createElement('div');
+                    const now = new Date().toLocaleTimeString('en', {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+                    line.textContent = now + '  ' + data.message;
+                    log.appendChild(line);
+                    log.scrollTop = log.scrollHeight;
+                }
+
+                if (data.status === 'complete') {
+                    clearInterval(interval);
+                    if (progressBar) progressBar.style.width = '100%';
+                    showToast(slug + ' is ready!', 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else if (data.status === 'error') {
+                    clearInterval(interval);
+                    if (badge) {
+                        badge.textContent = 'Error: ' + data.message;
+                        badge.classList.add('error');
+                    }
+                    if (progressBar) progressBar.classList.add('error');
+                }
+            } catch (e) {
+                console.error('Poll error:', e);
+            }
+        }, 2000);
+    }
+    </script>
+</body>
+</html>

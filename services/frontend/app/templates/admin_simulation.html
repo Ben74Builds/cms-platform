@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{{ static_url('img/logo.png') }}">
+
+    <!-- MapLibre GL -->
+    <script src="{{ static_url('lib/maplibre-gl/4.4.0/maplibre-gl.js') }}"></script>
+    <link href="{{ static_url('lib/maplibre-gl/4.4.0/maplibre-gl.css') }}" rel="stylesheet" />
+
+    <title>{{ PAGE_TITLE }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        .panel {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            padding: 16px;
+            font-size: 13px;
+            z-index: 10;
+        }
+
+        /* Title bar */
+        #title-bar {
+            position: absolute; top: 12px; left: 12px; z-index: 10;
+            background: rgba(255,255,255,0.97);
+            border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            padding: 10px 16px;
+        }
+        #title-bar h2 { font-size: 15px; color: #333; margin: 0; }
+        #title-bar .subtitle { font-size: 11px; color: #888; margin-top: 2px; }
+        #title-bar a { font-size: 11px; color: #1976D2; text-decoration: none; }
+        #title-bar a:hover { text-decoration: underline; }
+
+        /* Wizard panel */
+        #wizard {
+            top: 80px; left: 12px; width: 320px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        /* Step navigation */
+        .step-nav {
+            display: flex; gap: 4px; margin-bottom: 14px;
+        }
+        .step-btn {
+            flex: 1; padding: 8px 4px; border: 2px solid #ddd;
+            border-radius: 6px; background: #f5f5f5;
+            font-size: 12px; font-weight: 600; color: #888;
+            cursor: pointer; text-align: center; transition: all 0.2s;
+        }
+        .step-btn.active {
+            border-color: #1976D2; background: #E3F2FD; color: #1976D2;
+        }
+        .step-btn.done {
+            border-color: #4CAF50; background: #E8F5E9; color: #388E3C;
+        }
+
+        /* Step content */
+        .step-content { display: none; }
+        .step-content.active { display: block; }
+
+        .section-title {
+            font-weight: 600; color: #333; font-size: 13px;
+            margin: 12px 0 8px; padding-bottom: 4px;
+            border-bottom: 1px solid #eee;
+        }
+        .section-title:first-child { margin-top: 0; }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 14px; border: none; border-radius: 5px;
+            font-size: 13px; font-weight: 500; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-primary { background: #1976D2; color: white; }
+        .btn-primary:hover { background: #1565C0; }
+        .btn-secondary { background: #f0f0f0; color: #333; border: 1px solid #ddd; }
+        .btn-secondary:hover { background: #e0e0e0; }
+        .btn-success { background: #388E3C; color: white; }
+        .btn-success:hover { background: #2E7D32; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-block { width: 100%; }
+
+        /* Inputs */
+        .form-row {
+            display: flex; align-items: center; gap: 8px;
+            margin: 6px 0; justify-content: space-between;
+        }
+        .form-label { color: #666; font-size: 12px; white-space: nowrap; }
+        .form-input {
+            border: 1px solid #ccc; border-radius: 4px;
+            padding: 5px 8px; font-size: 13px; width: 80px;
+            outline: none;
+        }
+        .form-input:focus { border-color: #1976D2; }
+
+        /* Station list */
+        .station-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px; margin: 4px 0;
+            background: #f8f9fa; border-radius: 6px;
+            border-left: 3px solid #FF6D00;
+        }
+        .station-item .station-info { flex: 1; }
+        .station-item .station-name {
+            font-weight: 600; font-size: 12px; color: #333;
+        }
+        .station-item .station-coords {
+            font-size: 10px; color: #999;
+        }
+        .station-item .remove-btn {
+            background: none; border: none; color: #999;
+            cursor: pointer; font-size: 16px; padding: 2px 6px;
+        }
+        .station-item .remove-btn:hover { color: #e53935; }
+
+        /* Fleet table */
+        .fleet-table {
+            width: 100%; border-collapse: collapse; font-size: 12px;
+            margin: 8px 0;
+        }
+        .fleet-table th {
+            text-align: left; padding: 6px 4px;
+            border-bottom: 2px solid #ddd; color: #666; font-size: 11px;
+        }
+        .fleet-table td {
+            padding: 4px; border-bottom: 1px solid #eee;
+        }
+        .fleet-table input {
+            width: 50px; border: 1px solid #ddd; border-radius: 3px;
+            padding: 3px 6px; font-size: 12px; text-align: center;
+        }
+        .fleet-table .total-row { font-weight: 600; background: #f5f5f5; }
+
+        /* Progress */
+        .progress-bar {
+            width: 100%; height: 8px; background: #e0e0e0;
+            border-radius: 4px; overflow: hidden; margin: 8px 0;
+        }
+        .progress-fill {
+            height: 100%; background: #1976D2; border-radius: 4px;
+            transition: width 0.3s; width: 0%;
+        }
+        .progress-msg {
+            font-size: 11px; color: #666; margin-top: 4px;
+        }
+
+        /* Result */
+        .result-box {
+            background: #E8F5E9; border: 1px solid #A5D6A7;
+            border-radius: 6px; padding: 12px; margin-top: 10px;
+            display: none;
+        }
+        .result-box.visible { display: block; }
+        .result-box .result-title {
+            font-weight: 600; color: #2E7D32; margin-bottom: 4px;
+        }
+        .result-box .result-detail {
+            font-size: 12px; color: #555;
+        }
+
+        /* Spinner */
+        .spinner {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff; border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle; margin-right: 4px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Hint text */
+        .hint { font-size: 11px; color: #999; margin-top: 4px; }
+        .hint.click-hint {
+            background: #FFF3E0; color: #E65100; padding: 6px 8px;
+            border-radius: 4px; margin: 8px 0;
+        }
+        .form-hint { display: block; font-size: 10px; color: #999; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Title -->
+    <div id="title-bar">
+        <h2>Simulation Setup</h2>
+        <div class="subtitle">Configure stations, fleet, and generate simulation data</div>
+        <a href="/">Home</a> &middot; <a href="/area/{{ city }}/admin/linkage">Linkage Inspector</a>
+    </div>
+
+    <!-- Wizard Panel -->
+    <div id="wizard" class="panel">
+        <!-- Step Navigation -->
+        <div class="step-nav">
+            <div class="step-btn active" data-step="1" onclick="goToStep(1)">1. Stations</div>
+            <div class="step-btn" data-step="2" onclick="goToStep(2)">2. Fleet</div>
+            <div class="step-btn" data-step="3" onclick="goToStep(3)">3. Generate</div>
+        </div>
+
+        <!-- Step 1: Stations -->
+        <div id="step-1" class="step-content active">
+            <div class="section-title">Station Placement</div>
+            <button class="btn btn-primary btn-block" onclick="importFromOSM()" id="osm-btn">
+                Import real stations from OpenStreetMap
+            </button>
+            <div class="hint" style="margin:6px 0 10px; text-align:center">or</div>
+            <div class="form-row">
+                <span class="form-label">Number of stations</span>
+                <input type="number" id="station-count" class="form-input" value="3" min="1" max="20" style="width:60px">
+                <button class="btn btn-secondary btn-sm" onclick="autoPropose()">Auto-propose</button>
+            </div>
+            <div class="hint click-hint" id="click-hint">
+                Click on the map to add a station manually
+            </div>
+            <div id="station-list"></div>
+            <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+                <button class="btn btn-primary" id="next-fleet-btn" onclick="goToStep(2)" disabled>Next: Fleet &rarr;</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Fleet -->
+        <div id="step-2" class="step-content">
+            <div class="section-title">Fleet Configuration</div>
+            <button class="btn btn-secondary btn-sm" onclick="applyDensityDefaults()" style="margin-bottom:8px">
+                Apply density profiles
+            </button>
+            <div class="hint" style="margin-bottom:8px">
+                Fleet auto-assigned from the service data by density tier:
+                <span style="color:#dc2626">Dense Urban</span> ·
+                <span style="color:#f59e0b">Urban</span> ·
+                <span style="color:#10b981">Suburban</span> ·
+                <span style="color:#6366f1">Rural</span>
+            </div>
+            <div id="fleet-config"></div>
+            <div id="fleet-summary" style="margin-top:8px"></div>
+            <div style="margin-top:10px; display:flex; justify-content:space-between;">
+                <button class="btn btn-secondary" onclick="goToStep(1)">&larr; Stations</button>
+                <button class="btn btn-primary" onclick="goToStep(3)">Next: Generate &rarr;</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Generate -->
+        <div id="step-3" class="step-content">
+            <div class="section-title">Generation Settings</div>
+            <div class="form-row">
+                <span class="form-label">Avg. vehicle speed</span>
+                <input type="number" id="gen-speed" class="form-input" readonly style="background:#f3f4f6;cursor:not-allowed" value="25">
+                <span class="form-hint">Auto-computed from density profiles (per-station speeds shown in Fleet tab)</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Coverage target (sec)</span>
+                <input type="number" id="gen-coverage-threshold" class="form-input" value="{{ city_config.coverage_threshold_sec | default(600) }}" min="60" max="1800" step="60">
+                <span class="form-hint">Call → arrival target. Mobilization (shown per station) is subtracted automatically.</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Duration (days)</span>
+                <input type="number" id="gen-days" class="form-input" value="7" min="1" max="30">
+            </div>
+            <div class="form-row">
+                <span class="form-label">Incident scale</span>
+                <input type="number" id="gen-scale" class="form-input" value="1.0" min="0.1" max="5.0" step="0.1">
+            </div>
+
+            <div id="gen-summary" style="margin:12px 0; font-size:12px; color:#555;"></div>
+
+            <button class="btn btn-success btn-block" id="gen-btn" onclick="startGeneration()">
+                Generate Simulation Data
+            </button>
+
+            <div id="gen-progress" style="display:none; margin-top:10px;">
+                <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                <div class="progress-msg" id="progress-msg">Starting...</div>
+            </div>
+
+            <div class="result-box" id="gen-result">
+                <div class="result-title">Generation Complete</div>
+                <div class="result-detail" id="result-detail"></div>
+                <button class="btn btn-primary btn-block" id="start-stream-btn" style="margin-top:10px" onclick="startStreaming()">
+                    Start Streaming &rarr; Open Map
+                </button>
+            </div>
+
+            <div style="margin-top:10px;">
+                <button class="btn btn-secondary" onclick="goToStep(2)">&larr; Fleet</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CITY_CONFIG = {{ city_config | tojson }};
+        const CITY_SLUG = "{{ city }}";
+    </script>
+    <script src="{{ static_url('js/admin_simulation.js') }}"></script>
+</body>
+</html>

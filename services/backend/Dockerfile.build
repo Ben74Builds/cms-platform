@@ -1,0 +1,281 @@
+# =============================================================================
+# CMS Backend - Build Container (GPU-Accelerated)
+# Compiles all binaries including CUDA kernels for GPU coverage computation
+# =============================================================================
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    g++ \
+    cmake \
+    make \
+    autoconf \
+    automake \
+    libtool \
+    pkg-config \
+    git \
+    wget \
+    curl \
+    unzip \
+    ca-certificates \
+    zlib1g-dev \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    libpq-dev \
+    libpqxx-dev \
+    libboost-all-dev \
+    libprotobuf-dev \
+    protobuf-compiler \
+    meson \
+    ninja-build \
+    rapidjson-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# =============================================================================
+# Build hiredis
+# =============================================================================
+# NOTE: override LIBRARY_PATH to prevent CUDA stubs path from corrupting hiredis install
+RUN git clone --depth 1 --branch v1.2.0 https://github.com/redis/hiredis.git && \
+    cd hiredis && \
+    make && \
+    LIBRARY_PATH=lib make install PREFIX=/usr/local && \
+    ldconfig
+
+# =============================================================================
+# Build redis-plus-plus
+# =============================================================================
+RUN git clone --depth 1 --branch 1.3.10 https://github.com/sewenew/redis-plus-plus.git && \
+    cd redis-plus-plus && \
+    mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DREDIS_PLUS_PLUS_CXX_STANDARD=17 .. && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
+
+# =============================================================================
+# Build librdkafka
+# =============================================================================
+RUN git clone --depth 1 --branch v2.3.0 https://github.com/confluentinc/librdkafka.git && \
+    cd librdkafka && \
+    ./configure --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
+
+# =============================================================================
+# Build protobuf (for OSM-binary compatibility)
+# =============================================================================
+RUN git clone --depth 1 --branch v3.21.12 https://github.com/protocolbuffers/protobuf.git && \
+    cd protobuf && \
+    git submodule update --init --recursive && \
+    ./autogen.sh && \
+    ./configure --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
+
+# =============================================================================
+# Build OSM-binary (OSMPBF)
+# =============================================================================
+RUN git clone --depth 1 https://github.com/openstreetmap/OSM-binary.git && \
+    cd OSM-binary && \
+    mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr/local .. && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
+
+# =============================================================================
+# Build RoutingKit
+# =============================================================================
+RUN git clone --depth 1 https://github.com/RoutingKit/RoutingKit.git && \
+    cd RoutingKit && \
+    make -j$(nproc) && \
+    cp lib/libroutingkit.so /usr/local/lib/ && \
+    cp -r include/routingkit /usr/local/include/ && \
+    ldconfig
+
+# =============================================================================
+# Build Pistache (HTTP library for API)
+# =============================================================================
+RUN git clone --depth 1 https://github.com/pistacheio/pistache.git && \
+    cd pistache && \
+    meson setup build --prefix=/usr/local --libdir=lib -Dbuildtype=release && \
+    meson compile -C build && \
+    meson install -C build && \
+    ldconfig
+
+# =============================================================================
+# Copy source code and local libraries
+# =============================================================================
+COPY src /build/cms/src
+COPY service /build/cms/service
+COPY test /build/cms/test
+COPY data/pbf /build/cms/data/pbf
+# Create output directories and rapidjson symlinks (using system rapidjson-dev)
+RUN mkdir -p /build/cms/bin /build/cms/data/backup/paris /build/cms/data/backup/andorra \
+    /build/cms/lib/rapidjson/include
+
+WORKDIR /build/cms
+
+# Create symlinks so source files using local lib paths find system rapidjson
+RUN ln -sf /usr/include/rapidjson /build/cms/lib/rapidjson/include/rapidjson && \
+    ln -sf /usr/include/rapidjson /build/cms/service/rapidjson
+
+# =============================================================================
+# Compile GPU coverage library (CUDA kernels)
+# Produces libgpu_coverage.so linked by all GPU-enabled binaries
+# =============================================================================
+RUN nvcc -std=c++17 -O3 \
+    --compiler-options '-fPIC' \
+    -shared \
+    ./src/gpu_coverage.cu \
+    -o /usr/local/lib/libgpu_coverage.so \
+    -lcudart && \
+    ldconfig
+
+# =============================================================================
+# Compile pbf_to_contracted_graph (no GPU needed for graph generation)
+# =============================================================================
+RUN g++ -std=c++17 -O3 \
+    -I/usr/local/include \
+    -L/usr/local/lib \
+    ./test/pbf_to_contracted_graph.cpp \
+    -o ./bin/pbf_to_contracted_graph \
+    -lroutingkit -lprotobuf-lite -losmpbf -lz -lboost_serialization -lpqxx -lpq \
+    -lgpu_coverage -L/usr/local/cuda/lib64 -lcudart \
+    -Wl,-rpath,/usr/local/lib,-rpath,/usr/local/cuda/lib64
+
+# =============================================================================
+# Compile stream_record_worker (Kafka -> Redis for GPS/status data)
+# =============================================================================
+RUN g++ -std=c++17 -O3 \
+    -I/usr/local/include \
+    -L/usr/local/lib \
+    ./service/stream_record_worker.cpp \
+    -o ./bin/stream_record_worker \
+    -lroutingkit -lprotobuf-lite -losmpbf -lz -lboost_serialization \
+    -lrdkafka++ -lrdkafka -lhiredis -lredis++ -lpthread -lssl -lcrypto -lpqxx -lpq \
+    -lgpu_coverage -L/usr/local/cuda/lib64 -lcudart \
+    -Wl,-rpath,/usr/local/lib,-rpath,/usr/local/cuda/lib64
+
+# =============================================================================
+# Compile stream_geo_worker (GPU-accelerated coverage computation)
+# =============================================================================
+RUN g++ -std=c++17 -O3 \
+    -I/usr/local/include \
+    -L/usr/local/lib \
+    ./service/stream_geo_worker.cpp \
+    -o ./bin/stream_geo_worker \
+    -lroutingkit -lprotobuf-lite -losmpbf -lz -lboost_serialization \
+    -lrdkafka++ -lrdkafka -lhiredis -lredis++ -lpthread -lssl -lcrypto -lpqxx -lpq \
+    -lgpu_coverage -L/usr/local/cuda/lib64 -lcudart \
+    -Wl,-rpath,/usr/local/lib,-rpath,/usr/local/cuda/lib64
+
+# =============================================================================
+# Compile stream_capacity_response_worker (GPU-accelerated batch capacity)
+# =============================================================================
+RUN g++ -std=c++17 -O3 \
+    -I/usr/local/include \
+    -L/usr/local/lib \
+    ./service/stream_capacity_response_worker.cpp \
+    -o ./bin/stream_capacity_response_worker \
+    -lroutingkit -lprotobuf-lite -losmpbf -lz -lboost_serialization \
+    -lhiredis -lredis++ -lpthread -lssl -lcrypto -lpqxx -lpq \
+    -lgpu_coverage -L/usr/local/cuda/lib64 -lcudart \
+    -Wl,-rpath,/usr/local/lib,-rpath,/usr/local/cuda/lib64
+
+# =============================================================================
+# Compile api_get_gp_n_status
+# =============================================================================
+RUN g++ -std=c++17 -O3 \
+    -I/usr/local/include \
+    -L/usr/local/lib \
+    ./service/api_get_gp_n_status.cpp \
+    -o ./bin/api_get_gp_n_status \
+    -lpistache -lhiredis -lredis++ -lpthread -lssl -lcrypto -lcurl \
+    -Wl,-rpath,/usr/local/lib
+
+# =============================================================================
+# Generate graph data from PBF files
+# =============================================================================
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+# Generate Paris graph data
+RUN ./bin/pbf_to_contracted_graph ./data/pbf/paris-latest.osm.pbf ./data/backup
+
+# Generate Andorra graph data (smaller, for testing)
+RUN ./bin/pbf_to_contracted_graph ./data/pbf/andorra-latest.osm.pbf ./data/backup
+
+# Generate Vaduz graph data
+RUN ./bin/pbf_to_contracted_graph ./data/pbf/vaduz.osm.pbf ./data/backup
+
+# Generate San Marino graph data
+RUN ./bin/pbf_to_contracted_graph ./data/pbf/san-marino.osm.pbf ./data/backup
+
+# Generate Annecy graph data
+RUN ./bin/pbf_to_contracted_graph ./data/pbf/annecy-latest.osm.pbf ./data/backup
+
+# =============================================================================
+# Final stage - copy artifacts (CUDA runtime for GPU access)
+# =============================================================================
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libstdc++6 \
+    libgcc-s1 \
+    libcurl4 \
+    libprotobuf23 \
+    zlib1g \
+    libpq5 \
+    libpqxx-6.4 \
+    libgomp1 \
+    libssl3 \
+    libboost-serialization1.74.0 \
+    supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create directory structure
+RUN mkdir -p /app/bin /app/data /app/lib
+
+WORKDIR /app
+
+# Copy compiled binaries
+COPY --from=builder /build/cms/bin/* /app/bin/
+
+# Copy generated graph data
+COPY --from=builder /build/cms/data/backup /app/data/backup
+
+# Copy shared libraries (including GPU coverage library)
+COPY --from=builder /usr/local/lib/libroutingkit.so /usr/lib/
+COPY --from=builder /usr/local/lib/librdkafka*.so* /usr/lib/
+COPY --from=builder /usr/local/lib/libhiredis*.so* /usr/lib/
+COPY --from=builder /usr/local/lib/libredis++*.so* /usr/lib/
+COPY --from=builder /usr/local/lib/libprotobuf*.so* /usr/lib/
+COPY --from=builder /usr/local/lib/libosmpbf*.so* /usr/lib/
+COPY --from=builder /usr/local/lib/libpistache*.so* /usr/lib/
+COPY --from=builder /usr/local/lib/libgpu_coverage.so /usr/lib/
+
+RUN ldconfig
+
+# Make binaries executable
+RUN chmod +x /app/bin/*
+
+# Copy data files (coverage, geojson, etc.)
+COPY data/coverage /app/data/coverage
+COPY data/geojson /app/data/geojson
+
+# Copy supervisord configuration
+COPY supervisord.conf /etc/supervisor/conf.d/cms.conf
+
+EXPOSE 9080
+
+CMD ["supervisord", "-n"]

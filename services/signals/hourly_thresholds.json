@@ -1,0 +1,11 @@
+{
+    "description": "ILLUSTRATIVE hourly response-time budget (selection -> arrival), in seconds. Synthetic demo values shaped like a real profile: slower at night when crews are asleep, faster mid-afternoon. Replace with a profile fitted on your own dispatch history — see services/frontend/app/response_time_model.py.",
+    "unit": "seconds",
+    "source": "synthetic",
+    "thresholds": {
+        "0": 800, "1": 815, "2": 825, "3": 830, "4": 830, "5": 825,
+        "6": 810, "7": 790, "8": 785, "9": 785, "10": 780, "11": 775,
+        "12": 770, "13": 765, "14": 765, "15": 775, "16": 785, "17": 795,
+        "18": 800, "19": 790, "20": 775, "21": 770, "22": 780, "23": 790
+    }
+}

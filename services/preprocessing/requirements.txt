@@ -1,0 +1,7 @@
+osmium
+shapely>=2.0.0
+rtree
+geopandas
+pandas
+numpy
+pyproj

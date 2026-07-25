@@ -1,0 +1,77 @@
+{
+  "version": 8,
+  "name": "Custom",
+  "metadata": {
+    "mapbox:autocomposite": true
+  },
+  "sources": {
+    "composite": {
+      "type": "vector",
+      "tiles": [
+        "<TILESOURCE_URL>"
+      ]
+    }
+  },
+  "layers": [
+    {
+      "interactive": true,
+      "layout": {
+        "line-cap": "butt",
+        "line-join": "miter"
+      },
+      "filter": [
+        "all",
+        [
+          "==",
+          "$type",
+          "LineString"
+        ],
+        [
+          "all",
+          [
+            "in",
+            "highway",
+            "motorway",
+            "motorway_link",
+            "primary",
+            "primary_link ",
+            "secondary",
+            "secondary_link ",
+            "residential",
+            "tertiary",
+            "tertiary_link ",
+            "trunk",
+            "trunk_link",
+            "street",
+            "street_limited",
+            "service",
+            "track",
+            "pedestrian",
+            "path",
+            "link"
+          ]
+        ]
+      ],
+      "type": "line",
+      "source": "composite",
+      "id": "tunnel_minor",
+      "paint": {
+        "line-color": "#FF0000",
+        "line-width": {
+          "base": 1.55,
+          "stops": [
+            [
+              4,
+              0.25
+            ],
+            [
+              20,
+              30
+            ]
+          ]
+        }
+      },
+      "source-layer": "<SOURCE_LAYER>"
+    }
+  ]
+}

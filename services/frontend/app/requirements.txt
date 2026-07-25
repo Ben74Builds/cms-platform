@@ -1,0 +1,28 @@
+# FastAPI and ASGI server
+fastapi>=0.109.0,<0.115.0
+uvicorn[standard]>=0.27.0
+
+# Async Redis
+redis>=5.0.0
+
+# Async Kafka
+aiokafka>=0.10.0
+
+# Async HTTP client
+httpx>=0.27.0
+
+# Templates
+jinja2>=3.1.0
+
+# Production server
+gunicorn>=21.0.0
+
+# Simulation generator
+numpy>=1.26.0
+scikit-learn>=1.4.0
+psycopg2-binary>=2.9.0
+
+# Preprocessing pipeline (for city setup)
+osmium>=3.7.0
+shapely>=2.0.0
+rtree>=1.2.0

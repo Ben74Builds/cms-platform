@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{{ static_url('img/logo.png') }}">
+
+    <!-- MapLibre GL -->
+    <script src="{{ static_url('lib/maplibre-gl/4.4.0/maplibre-gl.js') }}"></script>
+    <link href="{{ static_url('lib/maplibre-gl/4.4.0/maplibre-gl.css') }}" rel="stylesheet" />
+
+    <!-- Deck.gl for GPU-accelerated coverage rendering (full bundle) -->
+    <script src="https://unpkg.com/deck.gl@9.0.0/dist.min.js"></script>
+
+    <!-- Supercluster for MapLibre clustering -->
+    <script src="https://unpkg.com/supercluster@8.0.1/dist/supercluster.min.js"></script>
+
+    <!-- D3.js -->
+    <script src="{{ static_url('lib/d3/d3.v6.min.js') }}"></script>
+
+    <!-- jQuery removed - using vanilla JavaScript (~30KB bundle reduction) -->
+
+    {% if vite_dev_mode() %}
+    <!-- Vite Development Mode (HMR enabled) -->
+    {{ vite_asset('src/main.js') }}
+    {% else %}
+    <!-- Production Mode (auto cache-busting via file mtime) -->
+    <link href="{{ static_url('styles/main.css') }}" rel="stylesheet" />
+    {% endif %}
+
+    <title>{{ service_coverage }}</title>
+</head>
+<body>
+    <!-- Skip Link for Keyboard Navigation -->
+    <a href="#map" class="skip-link" aria-label="Skip to map content">Skip to map</a>
+
+    <!-- Loading Overlay -->
+    <div id="loading_overlay" class="loading-overlay" role="status" aria-live="polite">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <img src="/static/img/logo.png" alt="" width="64" height="64">
+            </div>
+            <h2 class="loading-title">{{ service_coverage }}</h2>
+            <div class="loading-progress-container">
+                <div class="loading-progress-bar" id="loading_progress_bar"></div>
+            </div>
+            <div class="loading-step" id="loading_step">Initializing...</div>
+            <div class="loading-steps-list" id="loading_steps_list"></div>
+        </div>
+    </div>
+
+    <!-- Connection Status Indicator -->
+    <div id="connection_status" class="connection-status connection-live" aria-live="polite">
+        <span class="status-dot"></span>
+        <span class="status-text">Live</span>
+    </div>
+
+    <!-- Stop & Exit Button -->
+    <button id="stop_exit_btn" class="stop-exit-btn" aria-label="Stop simulation and return to home"
+            title="Stop simulation, flush coverage data, and return to city selector">
+        <span class="stop-icon">&#x25A0;</span> Stop &amp; Exit
+    </button>
+
+    <!-- Toast Notification Container -->
+    <div id="toast_container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <div id='map_view' role="application" aria-label="Emergency services coverage map">
+        <div id='map' role="img" aria-label="Interactive map showing real-time emergency unit positions and coverage areas" tabindex="0"></div>
+        <!-- Legends overlay -->
+        <div id='legends_overlay' role="complementary" aria-label="Map controls and legend">
+            <div id='memory_legend' class='info legend' role="status" aria-label="Performance metrics">
+                <b><div id="result"></div></b>
+                <div id="fps_counter"></div>
+                <div id="heap_size_limit"></div>
+                <div id="coverage_stats"></div>
+            </div>
+            <div id='coverage_legend' class='info legend' role="region" aria-label="Map filters and controls">
+                <fieldset class="filter-group">
+                    <legend class="visually-hidden">Layer visibility</legend>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="togBtnStations" value="true" checked aria-label="Show fire stations">
+                        Stations
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="togBtnHospitals" value="true" aria-label="Show hospitals">
+                        Hospitals
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="togBtnRoadGraph" value="false" aria-label="Show road graph">
+                        Road graph
+                    </label>
+                </fieldset>
+
+                <div class="filter-dropdowns">
+                    <label for="categories_dropdownlist" class="visually-hidden">Filter by unit category</label>
+                    <select id="categories_dropdownlist" aria-label="Filter units by category"></select>
+                    <label for="competences_dropdownlist" class="visually-hidden">Filter by competence</label>
+                    <select id="competences_dropdownlist" aria-label="Filter units by competence"></select>
+                </div>
+
+                <a href="#" id="display_all" role="button" aria-label="Clear all filters">Clear filters</a>
+
+                <div class="coverage-info" role="status" aria-live="polite">
+                    <div>Time: <span id="datetime">-</span></div>
+                    <b><div>Service Coverage</div></b>
+                    <div>Threshold: <span id="coverage_threshold">{{ city_config.coverage_threshold_sec | default(600) }}</span>s</div>
+                    <div>Uncovered: <span id="uncovered_area">-</span>%</div>
+                    <div>1 unit: <span id="area_covered_by_one_unit">-</span>%</div>
+                    <div>2+ units: <span id="area_covered_by_more_than_one_unit">-</span>%</div>
+                </div>
+            </div>
+
+            <!-- Coverage Color Legend -->
+            <div id='color_legend' class='info legend coverage-color-legend' role="img" aria-label="Coverage level color legend">
+                <div class="legend-title">Coverage Level</div>
+                <div class="legend-scale">
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: var(--coverage-0, #ff0000);"></span>
+                        <span class="legend-label">Uncovered</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: var(--coverage-1, #ffd100);"></span>
+                        <span class="legend-label">1 unit</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: var(--coverage-3, #cfff00);"></span>
+                        <span class="legend-label">2-3 units</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: var(--coverage-5, #79ff00);"></span>
+                        <span class="legend-label">4-5 units</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: var(--coverage-7, #00ff7d);"></span>
+                        <span class="legend-label">6-7 units</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: var(--coverage-10, #05f7ff);"></span>
+                        <span class="legend-label">8+ units</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if debug_mode %}
+    <!-- Debug Panel (full height left side) - Only shown in DEBUG_MODE -->
+    <div id="debug_panel" class="debug-panel collapsed">
+        <div id="debug_toggle_btn" class="debug-toggle-btn">Debug</div>
+        <div id="debug_panel_content" class="debug-panel-content">
+            <div class="debug-header">
+                <b>Debug Console</b>
+                <button id="debug_copy_btn" class="debug-close-btn" title="Copy log to clipboard" onclick="
+                    const log = document.getElementById('debug_log');
+                    const text = Array.from(log.children).map(d => d.textContent).join('\n');
+                    navigator.clipboard.writeText(text).then(() => this.textContent = 'Copied!');
+                    setTimeout(() => this.textContent = 'Copy', 1500);
+                ">Copy</button>
+                <button id="debug_close_btn" class="debug-close-btn">X</button>
+            </div>
+            <div class="debug-status">
+                <div>Streams: <span id="stream_status" class="status-pending">initializing...</span></div>
+                <div>Coverage SSE: <span id="coverage_sse_status">-</span></div>
+                <div>Main SSE: <span id="main_sse_status">-</span></div>
+                <div>Route SSE: <span id="route_sse_status">-</span></div>
+                <hr>
+                <div>Last msg: <span id="last_msg_time">-</span></div>
+                <div>Covered IDs: <span id="covered_ids_count">0</span></div>
+                <div>Visible features: <span id="visible_features_count">0</span></div>
+                <div>Units loaded: <span id="units_count">0</span></div>
+                <div>Layers: <span id="layers_status">-</span></div>
+            </div>
+            <div class="debug-log-header">Log:</div>
+            <div id="debug_log" class="debug-log"></div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not vite_dev_mode() %}
+    <!-- App scripts (auto cache-busting via file mtime) -->
+    {% if city_config is defined and city_config %}
+    <script>
+        const __CITY_CONFIG = {{ city_config | tojson }};
+        const __CITY_SLUG = "{{ city }}";
+    </script>
+    {% endif %}
+    <script src="{{ static_url('configuration_settings.js') }}"></script>
+    <script src="{{ static_url('js/global_variables_initializer.js') }}"></script>
+    <script src="{{ static_url('js/deckgl-coverage-layer.js') }}"></script>
+    <script src="{{ static_url('js/maplibre_donut_cluster.js') }}"></script>
+    <script src="{{ static_url('js/utilities.js') }}"></script>
+    <script src="{{ static_url('js/reference_data_loader_callbacks.js') }}"></script>
+    <script src="{{ static_url('js/controller.js') }}"></script>
+    {% endif %}
+
+    <script type="text/javascript">
+        // i18n data from server
+        const LANG = "{{ lang }}";
+        const LANG_DATA = {{ lang_data | tojson | safe }};
+
+        var stations;
+
+        window.onload = async function() {
+            // Initialize loading progress
+            loadingProgress.init();
+
+            // Step 1: Load status data
+            loadingProgress.update('status');
+            await csv_to_dataframe_like_array(CSV_FILE_STATUS, "id", STATUS, callback_status_loaded);
+
+            // Step 2: Load MapLibre map
+            loadingProgress.update('map');
+            await load_maplibre_layer();
+
+            // Step 3: Initialize coverage Web Worker
+            loadingProgress.update('worker');
+            initCoverageWorker();
+
+            // Step 4: Initialize donut cluster
+            loadingProgress.update('cluster');
+            initDonutCluster();
+
+            // Load memory consumption monitor
+            load_memory_consumption_legend();
+
+            // Setup filter handlers
+            setupFilterHandlers();
+
+            // Step 5: Load reference data
+            loadingProgress.update('reference');
+            await Promise.all([
+                csv_to_dataframe_like_array(CSV_FILE_UNIT_COMPETENCES, "id", unit_competences, callback_unit_competences_loaded),
+                csv_to_dataframe_like_array(CSV_FILE_UNIT_CATEGORIES, "id", unit_categories, callback_unit_categories_loaded),
+                csv_to_dataframe_like_array(CSV_FILE_STATIONS, "id", stations, callback_stations_loaded),
+                csv_to_dataframe_like_array(CSV_FILE_POIS_TYPES, "id", pois_types, callback_pois_types_loaded),
+                csv_to_dataframe_like_array(CSV_FILE_POIS, "id", pois, callback_pois_loaded)
+            ]);
+
+            // Step 6: Initialize positions and status
+            loadingProgress.update('positions');
+            const _serviceId = (typeof __CITY_CONFIG !== 'undefined' && __CITY_CONFIG.service_id) ? __CITY_CONFIG.service_id : 1;
+            await initialize_geopositions_and_status('/api/gp_and_status/' + _serviceId);
+
+            // Step 7: Start SSE streams
+            loadingProgress.update('streams');
+            initializeStreams();
+
+            // Complete loading
+            loadingProgress.complete();
+        };
+
+        // Register Service Worker for offline support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/js/service-worker.js')
+                    .then((registration) => {
+                        console.log('[ServiceWorker] Registered:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.warn('[ServiceWorker] Registration failed:', error);
+                    });
+            });
+        }
+    </script>
+
+</body>
+</html>

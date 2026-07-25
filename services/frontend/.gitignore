@@ -1,0 +1,10 @@
+__pycache__/
+_test/
+lib/
+env/
+app/static/data/tiles/
+
+# Vite / Node.js
+node_modules/
+app/static/dist/
+*.local
